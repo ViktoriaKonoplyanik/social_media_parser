@@ -64,6 +64,7 @@ async def master_get_subscribers_async(session: aiohttp.ClientSession, url: str,
 
     return ""
 
+
 async def parse_socials_from_url_async(session: aiohttp.ClientSession, url: str) -> Tuple[List[str], List[str]]:
     """
     Парсит веб-страницу и извлекает ссылки на социальные сети (VK, Telegram).
@@ -123,7 +124,6 @@ async def search_vk_group_via_api_async(session: aiohttp.ClientSession, company:
     Returns:
         Tuple[List[str], List[str], str]: Списки найденных ссылок, сетей и статус поиска (лог).
     """
-    # Удаляем содержимое в скобках из названия компании (например, организационно-правовую форму)
     regex_pattern = r'\(.*?\)'
     clean_company = re.sub(regex_pattern, '', company).strip()
 
@@ -198,18 +198,15 @@ async def process_single_company(session: aiohttp.ClientSession, row: pd.Series,
 
         log = "Проверены Сайт/Яндекс" if all_links else "Сайт/Яндекс проверены, но соцсети не найдены"
     else:
-        # Fallback: ищем через API VK, если сайтов нет
         all_links, all_nets, msg = await search_vk_group_via_api_async(session, company_name, city_name)
         log = f"В таблице нет данных. Запущен поиск через API ВК. Результат: {msg}"
 
-    # Очистка дубликатов с сохранением порядка
     unique_links, unique_nets = [], []
     for link, net in zip(all_links, all_nets):
         if link not in unique_links:
             unique_links.append(link)
             unique_nets.append(net)
 
-    # Получаем количество подписчиков
     subs_tasks = [master_get_subscribers_async(session, link, net) for link, net in zip(unique_links, unique_nets)]
     subs = await asyncio.gather(*subs_tasks)
 
@@ -226,7 +223,6 @@ async def process_single_company(session: aiohttp.ClientSession, row: pd.Series,
             {**base_info, 'Ссылка на аккаунт': 'Не найдено', 'Соц сеть': 'Не найдено', 'Кол-во подписчиков': ''})
     else:
         for i, (link, net, sub_count) in enumerate(zip(unique_links, unique_nets, subs)):
-            # Заполняем базовую информацию только для первой строки группы (для визуальной чистоты отчета)
             row_info = base_info if i == 0 else {'ОП': '', 'Город': '', 'Сайт': '', 'Лог (Отладка)': ''}
             rows.append({
                 **row_info,
@@ -253,7 +249,6 @@ async def process_dataframe_async(df_actual: pd.DataFrame, op_col: str) -> pd.Da
     df_analysis = pd.DataFrame(columns=columns)
 
     async with aiohttp.ClientSession() as session:
-        # Обрабатываем батчами по 10 записей во избежание блокировок и перегрузки соединений
         for i in range(0, len(df_actual), 10):
             batch = df_actual.iloc[i:i + 10]
             tasks = [process_single_company(session, row, op_col) for _, row in batch.iterrows()]
@@ -265,6 +260,6 @@ async def process_dataframe_async(df_actual: pd.DataFrame, op_col: str) -> pd.Da
             if flat_results:
                 df_analysis = pd.concat([df_analysis, pd.DataFrame(flat_results)], ignore_index=True)
 
-            await asyncio.sleep(0.5)  # Небольшая пауза между батчами
+            await asyncio.sleep(0.5)
 
     return df_analysis

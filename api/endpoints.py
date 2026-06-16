@@ -1,11 +1,9 @@
-# api/endpoints.py
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 from fastapi.responses import StreamingResponse
 import pandas as pd
 import io
 from urllib.parse import quote
 
-# 1. Импортируем нашу НОВУЮ асинхронную функцию
 from services.parser import process_dataframe_async
 
 router = APIRouter()
@@ -26,9 +24,9 @@ def preview_file(file: UploadFile = File(...)):
 
 
 @router.post("/parse")
-async def parse_file(file: UploadFile = File(...), ssbe_input: str = Form(...)): # 2. Добавили async
+async def parse_file(file: UploadFile = File(...), ssbe_input: str = Form(...)):  # 2. Добавили async
     try:
-        # 3. Читаем загруженный файл асинхронно
+
         file_contents = await file.read()
         xls = pd.ExcelFile(io.BytesIO(file_contents))
 
@@ -39,7 +37,6 @@ async def parse_file(file: UploadFile = File(...), ssbe_input: str = Form(...)):
         df_actual = pd.read_excel(xls, sheet_name=target_ssbe)
         op_col = 'Наименование ОП' if 'Наименование ОП' in df_actual.columns else df_actual.columns[0]
 
-        # 4. ВЫЗЫВАЕМ С AWAIT (Ждем, пока параллельный парсинг завершится)
         df_result = await process_dataframe_async(df_actual, op_col)
 
         output_buffer = io.BytesIO()
