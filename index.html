@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализ соцсетей</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #0e1117; color: #fafafa; font-family: 'Source Sans Pro', sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; }
+        .stApp { width: 100%; max-width: 800px; padding: 4rem 1.5rem; }
+        h1 { font-weight: 600; font-size: 2.5rem; margin-bottom: 2rem; }
+        .label { font-size: 14px; margin-bottom: 0.5rem; display: block; color: #fafafa; }
+
+        .stUploader { background-color: #262730; border: 1px dashed rgba(250, 250, 250, 0.2); border-radius: 0.5rem; padding: 2.5rem; text-align: center; cursor: pointer; transition: all 0.3s; margin-bottom: 1.5rem; }
+        .stUploader:hover { border-color: #ff4b4b; }
+        .stUploader svg { fill: #fafafa; opacity: 0.8; margin-bottom: 10px; }
+        #fileInput { display: none; }
+
+        /* Выпадающий список */
+        .stSelect { width: 100%; background-color: #262730; border: 1px solid rgba(250, 250, 250, 0.2); border-radius: 0.5rem; padding: 0.75rem; color: #fafafa; font-size: 16px; margin-bottom: 1.5rem; cursor: pointer; outline: none; }
+        .stSelect:focus { border-color: #ff4b4b; }
+
+        /* Кнопка */
+        .stButton { background-color: #ff4b4b; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: 0.3s; margin-top: 10px;}
+        .stButton:hover { background-color: #ff3333; }
+        .stButton:disabled { background-color: #262730; color: #888; cursor: not-allowed; }
+
+        /* Полоса загрузки (Прогресс-бар) */
+        .progress-container { width: 100%; background-color: #262730; border-radius: 4px; overflow: hidden; margin-top: 20px; display: none; height: 8px;}
+        .progress-bar { height: 100%; background-color: #ff4b4b; width: 30%; animation: loadBar 2s infinite linear; }
+        @keyframes loadBar { 0% { width: 0%; transform: translateX(-100%); } 100% { width: 30%; transform: translateX(400%); } }
+
+        .stAlert { padding: 1rem; border-radius: 0.5rem; margin-top: 1.5rem; display: none; }
+        .stAlert.success { background-color: rgba(33, 195, 84, 0.1); color: #21c354; border: 1px solid rgba(33, 195, 84, 0.2); display: block;}
+        .stAlert.error { background-color: rgba(255, 43, 43, 0.1); color: #ff2b2b; border: 1px solid rgba(255, 43, 43, 0.2); display: block;}
+        .stAlert.info { background-color: rgba(38, 39, 48, 0.8); color: #ccc; border: 1px solid #4b4c53; display: block;}
+    </style>
+</head>
+<body>
+
+<div class="stApp">
+    <h1>📊 Сбор ссылок</h1>
+
+    <label class="label">Загрузите исходный Excel файл</label>
+    <div class="stUploader" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <svg viewBox="0 0 24 24" width="36" height="36"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"></path></svg>
+        <div id="fileNameDisplay" style="font-weight: 600;">Drag and drop file here</div>
+        <div style="color: #888; font-size: 12px; margin-top: 5px;">XLSX files only</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx">
+
+    <div id="controlsContainer" style="display: none;">
+        <label class="label">Выберите лист (ССБЕ):</label>
+        <select class="stSelect" id="ssbeSelect"></select>
+
+        <button type="button" class="stButton" id="submitBtn">Запустить анализ</button>
+
+        <div class="progress-container" id="progressBar">
+            <div class="progress-bar"></div>
+        </div>
+    </div>
+
+    <div id="statusContainer"></div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const controlsContainer = document.getElementById('controlsContainer');
+    const ssbeSelect = document.getElementById('ssbeSelect');
+    const statusContainer = document.getElementById('statusContainer');
+    const progressBar = document.getElementById('progressBar');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // ШАГ 1: Файл выбран -> Читаем листы
+    fileInput.addEventListener('change', async function(e) {
+        if(e.target.files.length === 0) return;
+
+        fileNameDisplay.textContent = "📄 " + e.target.files[0].name;
+        statusContainer.innerHTML = '<div class="stAlert info">Читаем файл...</div>';
+
+        const formData = new FormData();
+        formData.append('file', e.target.files[0]);
+
+        try {
+            const response = await fetch('/api/preview', { method: 'POST', body: formData });
+            if (response.ok) {
+                const data = await response.json();
+
+                // Заполняем выпадающий список листами
+                ssbeSelect.innerHTML = '';
+                data.sheets.forEach(sheet => {
+                    const option = document.createElement('option');
+                    option.value = sheet;
+                    option.textContent = sheet;
+                    ssbeSelect.appendChild(option);
+                });
+
+                // Показываем элементы управления
+                controlsContainer.style.display = 'block';
+                statusContainer.innerHTML = '';
+            } else {
+                statusContainer.innerHTML = '<div class="stAlert error">Ошибка чтения файла.</div>';
+            }
+        } catch (error) {
+            statusContainer.innerHTML = `<div class="stAlert error">Ошибка связи с сервером: ${error.message}</div>`;
+        }
+    });
+
+    // ШАГ 2: Нажатие кнопки -> Парсинг
+    submitBtn.addEventListener('click', async function() {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('ssbe_input', ssbeSelect.value); // Берем значение из списка
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Парсинг идет... (это займет время)";
+        progressBar.style.display = 'block'; // Показываем бегунок
+        statusContainer.innerHTML = '';
+
+        try {
+            const response = await fetch('/api/parse', { method: 'POST', body: formData });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+
+                let filename = 'Result.xlsx';
+                const disposition = response.headers.get('Content-Disposition');
+                if (disposition && disposition.indexOf('filename*=') !== -1) {
+                    filename = decodeURIComponent(disposition.split("''")[1]);
+                }
+
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                statusContainer.innerHTML = '<div class="stAlert success">✅ Анализ успешно завершен! Файл сохранен.</div>';
+            } else {
+                statusContainer.innerHTML = `<div class="stAlert error">Ошибка парсинга.</div>`;
+            }
+        } catch (error) {
+            statusContainer.innerHTML = `<div class="stAlert error">Ошибка сервера: ${error.message}</div>`;
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Запустить анализ";
+            progressBar.style.display = 'none'; // Прячем бегунок
+        }
+    });
+</script>
+
+</body>
+</html>
