@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  web-parser:
+    build: .
+    container_name: alutech_social_parser
+    restart: always
+    ports:
+      - "8085:8085"
+    env_file:
+      - .env
